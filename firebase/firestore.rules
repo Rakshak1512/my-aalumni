@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // User cannot write privileged fields directly from browser
+    function doesNotModifyPrivilegedUserFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['role', 'accountStatus', 'approvalStatus', 'isVerified', 'createdAt', 'updatedAt']);
+    }
+
+    // Default deny for all collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Users collection: users can read their own document
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      // Backend handles creation/role assignment via Admin SDK
+      allow write: if false;
+    }
+    
+    // Student, Alumni, Faculty Profiles: read if authenticated, write via backend Admin SDK
+    match /studentProfiles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    match /alumniProfiles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    match /facultyProfiles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // Courses & Academic Years: read-only for authenticated
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    match /academicYears/{yearId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // Notifications: recipient can read and mark as read
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.recipientId == request.auth.uid 
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt']);
+      allow create, delete: if false;
+    }
+
+    // Conversations and Messages: participants can read
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+      allow write: if false; // writes via backend API for validation and safety
+      
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        allow write: if false;
+      }
+    }
+
+    // Approved achievements, opportunities, events, announcements: read-only for auth
+    match /achievements/{id} {
+      allow read: if isAuthenticated() && resource.data.status == 'approved';
+      allow write: if false;
+    }
+    
+    match /opportunities/{id} {
+      allow read: if isAuthenticated() && resource.data.status == 'approved';
+      allow write: if false;
+    }
+
+    match /events/{id} {
+      allow read: if isAuthenticated() && resource.data.status == 'approved';
+      allow write: if false;
+    }
+
+    match /announcements/{id} {
+      allow read: if isAuthenticated() && resource.data.status == 'published';
+      allow write: if false;
+    }
+
+    // Audit logs, reports, admin requests: strictly internal
+    match /auditLogs/{id} {
+      allow read, write: if false;
+    }
+
+    match /adminRequests/{id} {
+      allow read: if isAuthenticated() && resource.data.requesterId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /reports/{id} {
+      allow read, write: if false;
+    }
+  }
+}
+

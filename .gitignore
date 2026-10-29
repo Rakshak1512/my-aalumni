@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+dist/
+.vite/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+venv/
+.venv/
+env/
+
+# Environment files with secrets
+.env
+*.env
+!.env.example
+backend/.env
+frontend/.env
+
+# Service Accounts and Private Keys
+*.pem
+*.key
+firebase-service-account.json
+backend/firebase-service-account.json
+*firebase-adminsdk*.json
+credentials.json
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Deployment Archives
+*.zip
+*.tar.gz

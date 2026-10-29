@@ -1,0 +1,50 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isUnderMaxSize(maxMb) {
+      return request.resource.size < maxMb * 1024 * 1024;
+    }
+
+    function isSafeImageType() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    function isSafeDocType() {
+      return request.resource.contentType.matches('application/(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document)');
+    }
+
+    // User profile avatars
+    match /avatars/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && isUnderMaxSize(5) && isSafeImageType();
+    }
+
+    // Student resumes
+    match /resumes/{userId}/{fileName} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isUnderMaxSize(10) && isSafeDocType();
+    }
+
+    // Academic resources (uploaded by faculty/admin)
+    match /resources/{resourceId}/{fileName} {
+      allow read: if isAuthenticated();
+      // Enforced on backend for faculty/admin uploads
+      allow write: if false;
+    }
+
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
