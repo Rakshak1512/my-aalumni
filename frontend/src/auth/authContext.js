@@ -2,7 +2,7 @@
  * Authentication Context & State Management
  * Connects Firebase Client Authentication with Backend Profile Sync.
  */
-import { firebaseSignIn, firebaseSignUp, firebaseSignOut } from '../config/firebase.js';
+import { firebaseSignIn, firebaseSignUp, firebaseSignOut, firebaseSignInWithCustomToken } from '../config/firebase.js';
 import { api } from '../services/api.js';
 
 const DEMO_FALLBACK_USERS = {
@@ -115,6 +115,21 @@ class AuthState {
     localStorage.setItem('myalumni_token', token);
     localStorage.setItem('myalumni_role', this.role);
     api.setToken(token);
+    this.notify();
+    return this.user;
+  }
+
+  async loginWithOtp(email, code) {
+    const verified = await api.verifyOtp({ email, code, purpose: 'login' });
+    const { user, token } = await firebaseSignInWithCustomToken(verified.data.customToken);
+    this.token = token;
+    this.user = user;
+    api.setToken(token);
+    localStorage.setItem('myalumni_token', token);
+    const profile = await api.getCurrentUser();
+    this.user = profile.data;
+    this.role = profile.data.role;
+    localStorage.setItem('myalumni_role', this.role);
     this.notify();
     return this.user;
   }
