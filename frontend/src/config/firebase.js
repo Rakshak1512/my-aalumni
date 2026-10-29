@@ -1,93 +1,71 @@
 /**
- * Firebase Client Configuration & Authentication
- * Uses public Firebase Web Client credentials for client-side Auth.
- * Never stores backend secrets or service account keys in the frontend!
+ * Firebase Web SDK configuration and client authentication.
+ * Public web config is supplied through Vite environment variables; never use placeholder API keys.
  */
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  sendEmailVerification,
-  signOut,
-  onAuthStateChanged,
+  getAuth, signInWithCustomToken, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, sendPasswordResetEmail,
+  sendEmailVerification, signOut
 } from 'firebase/auth';
 
-// Public Web Firebase Configuration
-// Can be customized via window.__FIREBASE_CONFIG__ or standard defaults for local demo testing
 export const defaultFirebaseWebConfig = {
-  apiKey: "AIzaSyDemoPlaceholderForWebAuth2026",
-  authDomain: "myalumni-portal-demo.firebaseapp.com",
-  projectId: "myalumni-portal-demo",
-  storageBucket: "myalumni-portal-demo.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef1234567890"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || ''
 };
 
-const firebaseConfig = (typeof window !== 'undefined' && window.__FIREBASE_CONFIG__)
-  ? window.__FIREBASE_CONFIG__
-  : defaultFirebaseWebConfig;
+const injectedConfig = typeof window !== 'undefined' ? window.__FIREBASE_CONFIG__ : null;
+const firebaseConfig = injectedConfig || defaultFirebaseWebConfig;
+const requiredFields = ['apiKey', 'authDomain', 'projectId', 'appId'];
+const missingFields = requiredFields.filter((key) => !firebaseConfig[key] || String(firebaseConfig[key]).includes('Placeholder'));
+let auth = null;
 
-let app;
-let auth;
-
-try {
-  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  auth = getAuth(app);
-} catch (err) {
-  console.warn("Firebase client initialization warning:", err.message);
+if (!missingFields.length) {
+  try {
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    auth = getAuth(app);
+  } catch (error) {
+    console.error('Firebase client initialization failed:', error);
+  }
 }
 
 export { auth };
 
-/**
- * Sign in user with Email and Password via Firebase Auth
- */
-export async function firebaseSignIn(email, password) {
-  if (!auth) throw new Error("Firebase Auth is not initialized.");
-  const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  const token = await userCredential.user.getIdToken();
-  return { user: userCredential.user, token };
-}
-
-/**
- * Register user with Email and Password via Firebase Auth
- */
-export async function firebaseSignUp(email, password) {
-  if (!auth) throw new Error("Firebase Auth is not initialized.");
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-  // Send email verification
-  try {
-    await sendEmailVerification(userCredential.user);
-  } catch (e) {
-    console.warn("Could not send verification email:", e.message);
+function assertConfigured() {
+  if (missingFields.length) {
+    throw new Error('Firebase web configuration is missing or invalid. Set VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID, and VITE_FIREBASE_APP_ID in frontend/.env using values from Firebase Console.');
   }
-  const token = await userCredential.user.getIdToken();
-  return { user: userCredential.user, token };
+  if (!auth) throw new Error('Firebase Authentication could not initialize. Check the Firebase web configuration.');
 }
 
-/**
- * Send Password Reset Email via Firebase Auth supported workflow
- */
+export async function firebaseSignIn(email, password) {
+  assertConfigured();
+  const credential = await signInWithEmailAndPassword(auth, email, password);
+  return { user: credential.user, token: await credential.user.getIdToken() };
+}
+export async function firebaseSignUp(email, password) {
+  assertConfigured();
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  try { await sendEmailVerification(credential.user); } catch (error) { console.warn('Email verification dispatch failed:', error.message); }
+  return { user: credential.user, token: await credential.user.getIdToken() };
+}
+export async function firebaseSignInWithCustomToken(customToken) {
+  assertConfigured();
+  const credential = await signInWithCustomToken(auth, customToken);
+  return { user: credential.user, token: await credential.user.getIdToken(true) };
+}
 export async function firebaseSendPasswordReset(email) {
-  if (!auth) throw new Error("Firebase Auth is not initialized.");
-  return await sendPasswordResetEmail(auth, email);
+  assertConfigured();
+  return sendPasswordResetEmail(auth, email);
 }
-
-/**
- * Sign out from Firebase Auth
- */
 export async function firebaseSignOut() {
-  if (!auth) return;
-  return await signOut(auth);
+  if (auth) return signOut(auth);
 }
-
-/**
- * Get refreshed Firebase ID token for authenticated user
- */
 export async function getFreshIdToken() {
   if (!auth || !auth.currentUser) return null;
-  return await auth.currentUser.getIdToken(true);
+  return auth.currentUser.getIdToken(true);
 }
-

@@ -53,53 +53,12 @@ def require_auth(f):
         if not token:
             return error_response("Token string is empty.", "UNAUTHORIZED", 401)
 
-        # 1. Check for Demo Token (No authentication required for demo users)
+        # Demo tokens are intentionally rejected. A role string or locally fabricated token
+        # must never grant access to protected API routes.
         if token.startswith('demo-token-') or token.startswith('demo_token_'):
-            role_part = token.replace('demo-token-', '').replace('demo_token_', '').split('_')[0].lower()
-            demo_spec = DEMO_ACCOUNTS.get(role_part)
-            if demo_spec:
-                uid = demo_spec['uid']
-                try:
-                    db = get_firestore_client()
-                    user_doc = db.collection('users').document(uid).get()
-                    if user_doc.exists:
-                        user_data = user_doc.to_dict() or {}
-                        user_data['uid'] = uid
-                        user_data['isProvisioned'] = True
-                        user_data['emailVerified'] = True
-                        # Ensure the demo account maintains its designated persona role
-                        if user_data.get('role') != demo_spec['role']:
-                            user_data['role'] = demo_spec['role']
-                            try:
-                                db.collection('users').document(uid).update({'role': demo_spec['role']})
-                            except Exception:
-                                pass
-                        g.current_user = user_data
-                    else:
-                        g.current_user = {
-                            "uid": uid,
-                            "email": demo_spec['email'],
-                            "displayName": demo_spec['displayName'],
-                            "role": demo_spec['role'],
-                            "accountStatus": "active",
-                            "isProvisioned": True,
-                            "emailVerified": True
-                        }
-                    return f(*args, **kwargs)
-                except Exception as e:
-                    logger.error(f"Error loading demo user {uid}: {str(e)}")
-                    g.current_user = {
-                        "uid": uid,
-                        "email": demo_spec['email'],
-                        "displayName": demo_spec['displayName'],
-                        "role": demo_spec['role'],
-                        "accountStatus": "active",
-                        "isProvisioned": True,
-                        "emailVerified": True
-                    }
-                    return f(*args, **kwargs)
+            return error_response("Demo bypass tokens are disabled. Sign in through Firebase Authentication.", "INVALID_TOKEN", 401)
 
-        # 2. Regular Firebase ID Token
+        # Regular Firebase ID Token
         try:
             decoded = verify_firebase_id_token(token)
             uid = decoded.get('uid')

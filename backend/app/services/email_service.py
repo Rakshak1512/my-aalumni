@@ -134,3 +134,28 @@ class EmailService:
         """
         return cls.send_smtp_email(to_email, mail_subject, html)
 
+
+    @classmethod
+    def send_otp_email(cls, to_email: str, code: str, purpose: str, expires_minutes: int = 10):
+        purpose_labels = {
+            "login": "sign in to MyAlumni",
+            "register": "verify your MyAlumni registration",
+            "reset": "reset your MyAlumni password",
+        }
+        action = purpose_labels.get(purpose, "verify your MyAlumni account")
+        subject = f"MyAlumni verification code: {code}"
+        text = (
+            f"Your MyAlumni one-time verification code is {code}. "
+            f"Use it to {action}. It expires in {expires_minutes} minutes. "
+            "If you did not request this code, you can ignore this email."
+        )
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0a192f">
+          <h2>MyAlumni 2.0 verification</h2>
+          <p>Use this code to {action}:</p>
+          <div style="font-size:32px;font-weight:800;letter-spacing:8px;padding:18px;background:#f8fafc;text-align:center">{code}</div>
+          <p>This code expires in {expires_minutes} minutes. Never share it with anyone.</p>
+          <p style="color:#64748b;font-size:12px">If you did not request this code, ignore this email.</p>
+        </div>
+        """
+        return cls.send_smtp_email(to_email, subject, html, text)
