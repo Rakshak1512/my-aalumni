@@ -112,6 +112,15 @@ class ApiService {
     return this.post('/auth/demo-login', { role: roleOrEmail, email: roleOrEmail });
   }
 
+  // Email OTP authentication
+  requestOtp(email, purpose) {
+    return this.post('/auth/otp/request', { email, purpose });
+  }
+
+  verifyOtp(payload) {
+    return this.post('/auth/otp/verify', payload);
+  }
+
   // Auth
   syncProfile(profileData) {
     return this.post('/auth/sync-profile', profileData);
